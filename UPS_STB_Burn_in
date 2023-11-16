@@ -1,0 +1,513 @@
+
+
+#include <LiquidCrystal.h>
+#include <EEPROM.h>
+
+int vi;    //for calculating vin
+int vin;    // for calculating vin
+float vimax;  //max value of vin
+
+
+// Define the variables for the relay
+int UPS_Min_Time = 1000 ;        //min time for UPS Mode Relay ON
+int UPS_Max_Time = 2000 ;        //max time for UPS Mode Relay ON
+int STB_Min_Time = 1000 ;        //min time for STB Mode Relay ON
+int STB_Max_Time = 2000 ;        //max time for STB Mode Relay ON
+
+
+const int rs = 13, en = 12, d4 = 11, d5 = 10, d6 = 9, d7 = 8;
+LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
+
+const int stsp = A0;
+const int inc = A1;
+const int dec = A2;
+const int set = A3;
+#define BUZZER_PIN 0
+
+// Define menu options
+int slcMode = 0; 
+
+// Define relay pins
+const int relay1 = 1;
+const int relay2 = 2;
+const int relay3 = 3;
+const int relay4 = 4;
+const int relay5 = 5;
+const int relay6 = 6;
+const int relay7 = 7;
+int selectedRelay = 0;
+
+int hrs = 0;
+int Min = 0;
+int sec = 0;
+
+unsigned int check_val = 50;
+int add_chk = 0;
+int add_hrs = 1;
+int add_min = 2;
+bool RUN = true;
+bool min_flag = true;
+bool hrs_flag = true;
+
+
+unsigned long eventTime_1_vin = 2000;	  //interval in ms
+
+unsigned long previousTime_1 = 0;
+unsigned long previousTime_2 = 0;
+
+//----------------------------------------------------------------------------------//
+//||                                   Setup                                      ||//
+//----------------------------------------------------------------------------------//
+
+void setup() {
+
+  pinMode(stsp, INPUT_PULLUP);
+  pinMode(inc, INPUT_PULLUP);
+  pinMode(dec, INPUT_PULLUP);
+  pinMode(set, INPUT_PULLUP);
+  pinMode(BUZZER_PIN, OUTPUT);
+
+
+  // Set relay pins as output
+  pinMode(relay1, OUTPUT);
+  pinMode(relay2, OUTPUT);
+  pinMode(relay3, OUTPUT);
+  pinMode(relay4, OUTPUT);
+  pinMode(relay5, OUTPUT);
+  pinMode(relay6, OUTPUT);
+  pinMode(relay7, OUTPUT);
+
+
+  if (EEPROM.read(add_chk) != check_val) {
+    EEPROM.write(add_chk, check_val);
+    EEPROM.write(add_hrs, 0);
+    EEPROM.write(add_min, 1);
+  } 
+  else {
+    hrs = EEPROM.read(add_hrs);
+    Min = EEPROM.read(add_min);
+  }
+
+  // Initialize the LCD screen
+  lcd.begin(20, 4);
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Saynaco burn-in");
+  lcd.setCursor(0, 1);
+  lcd.print("Starting service");
+  //delay(2000);
+  //beep_buzzer();
+
+  menu();
+
+}
+
+
+void menu() {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Select & Press Set");
+  lcd.setCursor(0, 1);
+  lcd.print(">Test UPS");
+  lcd.setCursor(0, 2);
+  lcd.print(" Test Stabilizer");
+
+  if (EEPROM.read(add_chk) != check_val) {
+    EEPROM.write(add_chk, check_val);
+    EEPROM.write(add_hrs, 0);
+    EEPROM.write(add_min, 1);
+  } 
+  else {
+    hrs = EEPROM.read(add_hrs);
+    Min = EEPROM.read(add_min);
+  }
+
+
+  while (true) {
+    if (digitalRead(A1) == LOW) {
+      slcMode = 0; // UPS انتخاب شده است
+      lcd.setCursor(0, 1);
+      lcd.print(">Test UPS");
+      lcd.setCursor(0, 2);
+      lcd.print(" Test Stabilizer");
+    } else if (digitalRead(A2) == LOW) {
+      slcMode = 1; // STB انتخاب شده است
+      lcd.setCursor(0, 1);
+      lcd.print(" Test UPS");
+      lcd.setCursor(0, 2);
+      lcd.print(">Test Stabilizer");
+    } else if (digitalRead(A3) == LOW) {
+      lcd.clear();
+      if (slcMode == 0) {
+        lcd.print("Test Mode: UPS");
+        delay(1000);
+        ups(); // فراخوانی تابع UPS
+      } else {
+        lcd.print("Test Mode: Stabilizer");
+        delay(1000);
+        stb(); // فراخوانی تابع STB
+      }
+      break;
+    }
+  }
+}
+
+
+void ups(){
+
+      
+      lcd.setCursor(0, 2);
+      lcd.print("Salam ups");
+      delay(1000);
+     int Rand_Relay = 7;
+      INIT();
+
+}
+
+void stb(){
+        
+        lcd.setCursor(0, 2);
+      lcd.print("Salam STB");
+      int Rand_Relay = 6;
+      INIT();
+}
+
+
+
+
+
+
+
+// Main loop 
+void loop() {
+
+  if (digitalRead(stsp) == LOW) {
+    lcd.clear();
+    delay(250);
+    RUN = true;
+    while (RUN) {       
+      // Check if the countdown is stopped
+      if (digitalRead(stsp) == LOW) {
+        delay(1000);
+        if (digitalRead(stsp) == LOW) {
+          RLY_OFF();
+          lcd.clear();
+          lcd.setCursor(0, 0);
+          lcd.print("  TIMER STOPPED!  ");
+          beep_buzzer();
+          lcd.setCursor(0, 1);
+          lcd.print("   Please Wait ");
+          delay(2000);
+          RUN = false;
+          menu();
+          break;
+        }
+      }
+      
+      // Start the countdown
+      sec = sec - 1;
+      delay(500);
+      if (sec == -1) {
+        sec = 59;
+        Min = Min - 1;
+      }
+      if (Min == -1) {
+        Min = 59;
+        hrs = hrs - 1;
+      }
+      if (hrs == -1) {
+        hrs = 0;} 
+
+      // Display the countdown on the LCD
+      lcd.setCursor(0, 0);              
+      lcd.print("Remaining Time:");   
+      lcd.setCursor(4, 1);              
+      if (hrs <= 9) {
+        lcd.print('0');
+      }
+      lcd.print(hrs);
+      lcd.print(':');
+      if (Min <= 9) {
+        lcd.print('0');
+      }
+      lcd.print(Min);
+      lcd.print(':');
+      if (sec <= 9) {
+        lcd.print('0');
+      }
+      lcd.print(sec);
+
+      // Random_Relay_on based on selective menu              *************************
+       if (slcMode == 0) {
+        RAND_UPS_RLY(); 
+      } else {
+        
+        RAND_STB_RLY(); 
+      }
+
+      // Check if the countdown is finished
+      if (hrs == 0 && Min == 0 && sec == 0) {
+
+        //col+1,row+1  for End of program message
+        lcd.setCursor(0, 3);    
+        lcd.print(" End of Program ");
+        RLY_OFF();
+        RUN = false;
+        delay(100);
+        
+      }
+    }
+    beep_buzzer();
+        
+    menu();
+  }
+
+
+// Set Min and Hour / Receive commands from the push buttons
+  if (digitalRead(set) == LOW) {
+    delay(500);
+    while (min_flag) {
+      lcd.clear();
+      lcd.setCursor(0, 0);      //col+1 , row+1
+      lcd.print("SET MINUTE: ");
+      lcd.print(Min);
+      lcd.setCursor(0, 2);      //col+1 , row+1
+      lcd.print("UP/+, Down/-, Set");
+      delay(200);
+
+      // Increase the time (minute)
+      if (digitalRead(inc) == LOW) {
+        Min = Min + 1;
+        if (Min >= 60) Min = 0;
+        delay(200);
+      }
+
+      // Decrease the time (minute)
+      if (digitalRead(dec) == LOW) {
+        Min = Min - 1;
+        if (Min <= -1) Min = 0;
+        delay(200);
+      }
+      if (digitalRead(set) == LOW) {
+        min_flag = false;
+        delay(250);
+      }
+    }
+    while (hrs_flag) {
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("SET HOUR: ");
+      lcd.print(hrs);
+      lcd.setCursor(0, 2);      //col+1 , row+1
+      lcd.print("UP/+, Down/-, Set");
+      delay(200);
+
+       // Increase the time (Hour)
+      if (digitalRead(inc) == LOW) {
+        hrs = hrs + 1;
+        if (hrs > 23) hrs = 0;
+        delay(200);
+      }
+
+       // Decrease the time (Hour)
+      if (digitalRead(dec) == LOW) {
+        hrs = hrs - 1;
+        if (hrs <= -1) hrs = 0;
+        delay(200);
+      }
+      if (digitalRead(set) == LOW) {
+        hrs_flag = false;
+        delay(250);
+      }
+    }
+
+    // condition for invalid time settings
+    if (hrs == 0 && Min == 0) {
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("  INVALID TIME  ");
+      delay(2000);
+    } else {
+      EEPROM.write(add_hrs, hrs);
+      EEPROM.write(add_min, Min);
+    }
+    INIT();
+  }
+}
+
+
+//Initialize setup
+void INIT() {
+  hrs = EEPROM.read(add_hrs);
+  Min = EEPROM.read(add_min);
+  sec = 0;
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Test Duration is:");
+  lcd.setCursor(4, 1);
+  if (hrs <= 9) {
+    lcd.print('0');
+  }
+  lcd.print(hrs);
+  lcd.print(':');
+  if (Min <= 9) {
+    lcd.print('0');
+  }
+  lcd.print(Min);
+  lcd.print(':');
+  if (sec <= 9) {
+    lcd.print('0');
+  }
+  lcd.print(sec);
+
+  lcd.setCursor(0, 2);
+  lcd.print("Start: Start Program");
+  lcd.setCursor(0, 3);
+  lcd.print("Set: Change Time");
+
+  min_flag = true;
+  hrs_flag = true;
+  delay(500);
+
+}
+
+
+// Beep Buzzer
+ void beep_buzzer (){
+  for (int j = 0; j < 4; j++) {
+    digitalWrite(BUZZER_PIN, HIGH);
+    delay(500);
+    digitalWrite(BUZZER_PIN, LOW);
+    delay(200);
+  }
+ }
+
+
+
+// Function to randomly activate one of the relays RLY1 to RLY7 (Rly_on=min,max) if UPS is selected
+void RAND_UPS_RLY() {
+  selectedRelay = random(1, 8);
+  switch (selectedRelay) {
+    case 1:
+      digitalWrite(relay1, HIGH);
+      delay(random(UPS_Min_Time, UPS_Max_Time));
+      digitalWrite(relay1, LOW);
+      break;
+    case 2:
+      digitalWrite(relay2, HIGH);
+      delay(random(UPS_Min_Time, UPS_Max_Time));
+      digitalWrite(relay2, LOW);
+      break;
+    case 3:
+      digitalWrite(relay3, HIGH);
+      delay(random(UPS_Min_Time, UPS_Max_Time));
+      digitalWrite(relay3, LOW);
+      break;
+    case 4:
+      digitalWrite(relay4, HIGH);
+      delay(random(UPS_Min_Time, UPS_Max_Time));
+      digitalWrite(relay4, LOW);
+      break;
+    case 5:
+      digitalWrite(relay5, HIGH);
+      delay(random(UPS_Min_Time, UPS_Max_Time));
+      digitalWrite(relay5, LOW);
+      break;
+    case 6:
+      digitalWrite(relay6, HIGH);
+      delay(random(UPS_Min_Time, UPS_Max_Time));
+      digitalWrite(relay6, LOW);
+      break;
+    case 7:
+      digitalWrite(relay7, HIGH);
+      delay(random(UPS_Min_Time, UPS_Max_Time));
+      digitalWrite(relay7, LOW);
+      break;
+  }
+}
+
+// Function to randomly activate one of the relays RLY1 to RLY6
+// Function to randomly activate one of the relays RLY1 to RLY6 (Rly_on=min, max) if STB is selected
+void RAND_STB_RLY() {
+  selectedRelay = random(1, 7);
+  switch (selectedRelay) {
+    case 1:
+      digitalWrite(relay1, HIGH);
+      delay(random(STB_Min_Time, STB_Max_Time));
+      digitalWrite(relay1, LOW);
+      break;
+    case 2:
+      digitalWrite(relay2, HIGH);
+      delay(random(STB_Min_Time, STB_Max_Time));
+      digitalWrite(relay2, LOW);
+      break;
+    case 3:
+      digitalWrite(relay3, HIGH);
+      delay(random(STB_Min_Time, STB_Max_Time));
+      digitalWrite(relay3, LOW);
+      break;
+    case 4:
+      digitalWrite(relay4, HIGH);
+      delay(random(STB_Min_Time, STB_Max_Time));
+      digitalWrite(relay4, LOW);
+      break;
+    case 5:
+      digitalWrite(relay5, HIGH);
+      delay(random(STB_Min_Time, STB_Max_Time));
+      digitalWrite(relay5, LOW);
+      break;
+    case 6:
+      digitalWrite(relay6, HIGH);
+      delay(random(STB_Min_Time, STB_Max_Time));
+      digitalWrite(relay6, LOW);
+      break;
+  }
+}
+
+// Function to turn off all relays
+void RLY_OFF() {
+  digitalWrite(relay1, LOW);
+  digitalWrite(relay2, LOW);
+  digitalWrite(relay3, LOW);
+  digitalWrite(relay4, LOW);
+  digitalWrite(relay5, LOW);
+  digitalWrite(relay6, LOW);
+  digitalWrite(relay7, LOW);
+}
+
+
+//-----------------------------------------------------------------------------------//
+//||                             Display output Voltage                                ||//
+//-----------------------------------------------------------------------------------//
+
+void show_voltage(){
+   unsigned long currentTime = millis();
+if( currentTime - previousTime_1>= eventTime_1_vin){
+  
+    
+  for (int i = 0; i < 20; i++)
+   {
+    vi = analogRead(A4);
+    if (vi > vimax) 
+    {
+      vimax = vi;
+    }
+    delay(1);
+  }
+
+  vin = vimax * 0.0048;
+  vin = vin * 100/1.4142 ;    //vin*100/sqr(2)
+  
+  lcd.setCursor(0, 1);
+  //lcd.print(" Output Parameters ");    // line under timer
+  lcd.setCursor (0 , 2);   // lcd.setCursor (col+1 , row+1);;
+  lcd.print("Voutput= ");
+  lcd.print(vin);
+  lcd.print("Vac  ");
+
+previousTime_1 = currentTime;	//update the timing for the next event
+}
+
+
+}
+
